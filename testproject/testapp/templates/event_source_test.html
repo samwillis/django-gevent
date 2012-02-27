@@ -1,0 +1,43 @@
+<html>
+<head>
+	<title>Event Source Test</title>
+	<style>
+		body {
+			font-family: Arial, Helvetica, sans-serif;
+		}
+	</style>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+	<script src="{{ STATIC_URL }}js/EventSource.js"></script>
+	<script>
+
+	document.addEventListener('DOMContentLoaded', function () {
+    
+	    es = new EventSource('/event-source-test/');
+
+		es.addEventListener('open',function(event){
+			console.log(event)
+			$('#list').append('<li>Connected</li>');
+		});
+	
+		es.addEventListener('message',function(event){
+			console.log(event)
+			$('#list').append('<li>Message Event:<br /><pre>'+event.data+'</pre></li>');
+		});
+
+		es.addEventListener('update',function(event){
+			$('#list').append('<li>Update Event:<br /><pre>'+event.data+'</pre></li>');
+		});
+    
+	}, false);
+
+	</script>
+</head>
+<body>
+	<h1>Event Source Test</h1>
+	<p>This uses an EventSource shim to allow it to run in older 
+	browsers by falling back to long-polling.</p>
+	<ul id="list">
+	
+	</ul>
+</body>
+</html>

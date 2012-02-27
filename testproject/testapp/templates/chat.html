@@ -1,0 +1,111 @@
+<html>
+<head>
+	<title>Chat Test</title>
+	<style>
+		body {
+			font-family: Arial, Helvetica, sans-serif;
+		}
+		#bottom {
+			bottom:0;
+			left:0;
+			width:100%;
+			position:fixed;
+			background-color:#f7f7f7;
+			border-top: 1px solid #ccc;
+		}
+		#bottom button {
+			display: block;
+			width: 100px;
+			height: 40px;
+			margin: 0;
+		}
+		#bottom .left {
+			float: right;
+			width: 100px;
+			height: 40px;
+			padding: 15px;
+			text-align: center;
+		}
+		#bottom .left i {
+			font-size: 10px;
+		}
+		#bottom .right {
+			margin-right: 130px;
+			padding: 15px 0 15px 15px;
+		}
+		#bottom textarea {
+			display: block;
+			width: 100%;
+			height: 60px;
+		}
+		body {
+			padding-bottom: 70px;
+		}
+	</style>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+	<script src="{{ STATIC_URL }}js/EventSource.js"></script>
+	<script>
+	
+	var name = prompt("What's your name?", "")
+
+	$(function () {
+		setTimeout(function(){
+		    es = new EventSource('/chat/event_source/');
+			es.addEventListener('message',function(event){
+		        var split_pos = event.data.indexOf('\n');
+				var name = event.data.slice(0, split_pos);
+				var comment = event.data.slice(split_pos+1);
+				$('#chat_log').append('<li>'+name+':<br>'+comment+'</li>');
+				$(window).scrollTop($(document).height());
+			});
+		
+			$('#send_button').click(function(event){
+				PostComment()
+			});
+			$('#comment_input').keydown(function (event) {
+				if (!event.shiftKey && event.keyCode == 13) {
+					PostComment();
+					return false;
+				}
+			});
+			$('#comment_input').focus();
+		}, 50);
+	});
+	
+	function PostComment(){
+		var value = $('#comment_input').val()
+		$.ajax({
+			type: 'POST',
+			url: '/chat/post/',
+			data: {
+				comment: value,
+				name: name
+			}
+		});
+		$('#comment_input').val('');
+		$('#comment_input').focus();
+	}
+
+	</script>
+</head>
+<body>
+	<p>
+		<b>Chat Example</b><br />
+		This uses the EventSource implementation in django-gevent to provide a
+		chat room. It uses an EventSource shim to allow it to run in older 
+		browsers by falling back to long-polling.
+	</p>
+	<ul id="chat_log">
+		
+	</ul>
+	<div id="bottom">
+		<div class="left">
+			<button id="send_button">Send</button>
+			<!--i>Shift + Enter</i-->
+		</div>
+		<div class="right">
+			<textarea id="comment_input"></textarea>
+		</div>
+	</div>
+</body>
+</html>
