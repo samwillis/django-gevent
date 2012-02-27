@@ -1,3 +1,6 @@
 Django-Gevent
 
 A library to add gevent support to django.
+
+NOTE:
+This is very early in development, not sutable for use yet...
