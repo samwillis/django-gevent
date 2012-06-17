@@ -1,10 +1,13 @@
 from django.http import HttpResponse
 from django.views.decorators.http import condition
+from gevent import spawn
+from gevent.queue import Queue
 
 
 def streaming_response(view):
     # TODO: Transactions? Gzip? others?
     return condition(etag_func=None, last_modified_func=None)(view)
+
 
 
 def event_source(view):
@@ -30,6 +33,9 @@ def event_source(view):
                         for line in str(value).split('\n'):
                             yield "%s: %s\n" % (key, line)
                 yield "\n"
+            
+        resp = HttpResponse(event_gen(), mimetype=mimetype)
+
             
         resp = HttpResponse(event_gen(), mimetype=mimetype)
         return resp
