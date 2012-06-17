@@ -6,7 +6,7 @@ def read(fname):
 
 setup(
     name='django-gevent',
-    version=__import__('django_gevent').__version__,
+    version=__import__('django_gevent').get_version(),
     description='A library to add gevent support to django.',
     long_description=read('README'),
     author='Sam Willis',
@@ -14,7 +14,7 @@ setup(
     url='http://github.com/samwillis/django-gevent',
     download_url='http://github.com/samwillis/django-gevent/downloads',
     license='BSD',
-    packages=find_packages(exclude=['testproject']),
+    packages=find_packages(exclude=["*.testproject", "*.testproject.*", "testproject.*", "testproject"]),
     include_package_data=True,
     zip_safe=False,
     classifiers=[
