@@ -148,8 +148,8 @@ LOGGING = {
 
 
 DJANGO_GEVENT_PUBSUB = {
-    #'backend': 'django_gevent.pubsub.backends.simple_backend.SimplePubSubBackend',
-    'backend': 'django_gevent.pubsub.backends.redis_backend.RedisPubSubBackend',
+    'backend': 'django_gevent.pubsub.backends.simple_backend.SimplePubSubBackend',
+    #'backend': 'django_gevent.pubsub.backends.redis_backend.RedisPubSubBackend',
     'host': 'localhost',
     'port': 6379,
     'db': 0,

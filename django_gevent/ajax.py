@@ -17,8 +17,8 @@ def event_source(view):
             request.last_event_id = None
         
         request.long_poll = False
-        if 'HTTP_X_LONG_POLL' in request.META:
-            if request.META['HTTP_X_LONG_POLL'] == 'true':
+        if 'HTTP_X_REQUESTED_WITH' in request.META:
+            if request.META['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest':
                 request.long_poll = True
         
         def event_gen():

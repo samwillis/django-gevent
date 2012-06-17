@@ -27,6 +27,6 @@ setup(
     ],
     install_requires=[
         'gevent >= 0.13',
-        'django >= 1.3',
+        'django >= 1.4',
     ]
 )

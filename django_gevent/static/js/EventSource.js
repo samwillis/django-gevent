@@ -1,126 +1,176 @@
-// EventSource.js Copyright (c) 2011, Sam Willis
-// All rights reserved.
-// 
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//     * Redistributions of source code must retain the above copyright
-//       notice, this list of conditions and the following disclaimer.
-//     * Redistributions in binary form must reproduce the above copyright
-//       notice, this list of conditions and the following disclaimer in the
-//       documentation and/or other materials provided with the distribution.
-//     * Neither the name of Sam Willis nor the names of the contributors may be
-//       used to endorse or promote products derived from this software without 
-//       specific prior written permission.
-// 
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL SAM WILLIS BE LIABLE FOR ANY DIRECT, INDIRECT, 
-// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
-// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, 
-// EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// EventSource Shim from https://github.com/remy/polyfills/blob/master/EventSource.js
 
-if (typeof window.EventSource == 'undefined'){
-(function(window){
-    
-    var EventSource = function(url){
-        
-        // Ensure that constructor called with 'new'
-        if (!(this instanceof arguments.callee)){
-            throw new TypeError("Constructor cannot be called as a function.");
-        };
-        
-        var url = url;
-        var lastEventId = '';
-        var events_listeners = [];
-        var reconnectionTime = 3000;
-        
-        this.CONNECTING = 0;
-        this.OPEN = 0;
-        this.CLOSED = 0;
-        this.readyState = this.CONNECTING;
-        
-        this.onopen = null;
-        this.onmessage = null;
-        this.onerror = null;
-        
-        var init = function(){
-            
-        };
-        
-        this.addEventListener = function(name, func){
-            if (!events_listeners[name]) events_listeners[name] = [];
-            events_listeners[name].push(func);
-        };
-        
-        this.removeEventListener = function(name, func){
-            if (events_listeners[name]){
-                var index = events_listeners[name].indexOf(func);
-                if(index!=-1) events_listeners[name].splice(index, 1);
-            };
-        };
-    
-        this.dispatchEvent = function(name, e){
-            var pseudoEvent  = {
-                'type': e.type,
-                'data': e.data,
-                'origin': e.url,
-                'lastEventId': e.lastEventId,
-                'srcElement': this,
-                'target': this,
-                'currentTarget': this,
-                'eventPhase': 2,
-                'bubbles': false,
-                'cancelable': false,
-                'timeStamp': Date.now(),
-                'stopPropagation': function() {},
-                'preventDefault': function() {},
-                'initEvent': function() {}
-            };
-            if (name=='open' && this.onopen) this.onopen(pseudoEvent);
-            if (name=='message' && this.onmessage) this.onmessage(pseudoEvent);
-            if (name=='error' && this.onerror) this.onerror(pseudoEvent);
-            if (events_listeners[name]){
-                for (var i=0; i<events_listeners[name].length; i++){
-                    events_listeners[name][i](pseudoEvent);
-                };
-            };
-        };
-        
-        this.close = function(){
-            
-        };
-        
-        // XMLHttpFactories and createXMLHTTPObject from 
-        // http://www.quirksmode.org/js/xmlhttp.html
-        var XMLHttpFactories = [
-        	function () {return new XMLHttpRequest()},
-        	function () {return new ActiveXObject("Msxml2.XMLHTTP")},
-        	function () {return new ActiveXObject("Msxml3.XMLHTTP")},
-        	function () {return new ActiveXObject("Microsoft.XMLHTTP")}
-        ];
+;(function (global) {
 
-        var createXMLHTTPObject = function() {
-        	var xmlhttp = false;
-        	for (var i=0;i<XMLHttpFactories.length;i++) {
-        		try {
-        			xmlhttp = XMLHttpFactories[i]();
-        		}
-        		catch (e) {
-        			continue;
-        		}
-        		break;
-        	}
-        	return xmlhttp;
-        };
+//if ("EventSource" in global) return;
+
+var reTrim = /^(\s|\u00A0)+|(\s|\u00A0)+$/g;
+
+var EventSource = function (url) {
+  var eventsource = this,  
+      interval = 500, // polling interval  
+      lastEventId = null,
+      cache = '';
+
+  if (!url || typeof url != 'string') {
+    throw new SyntaxError('Not enough arguments');
+  }
+
+  this.URL = url;
+  this.readyState = this.CONNECTING;
+  this._pollTimer = null;
+  this._xhr = null;
+  
+  function pollAgain() {
+    eventsource._pollTimer = setTimeout(function () {
+      poll.call(eventsource);
+    }, interval);
+  }
+  
+  function poll() {
+    try { // force hiding of the error message... insane?
+      if (eventsource.readyState == eventsource.CLOSED) return;
+
+      // NOTE: IE7 and upwards support
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', eventsource.URL, true);
+      xhr.setRequestHeader('Accept', 'text/event-stream');
+      xhr.setRequestHeader('Cache-Control', 'no-cache');
+      // we must make use of this on the server side if we're working with Android - because they don't trigger 
+      // readychange until the server connection is closed
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      if (lastEventId != null) xhr.setRequestHeader('Last-Event-ID', lastEventId);
+      cache = '';
+    
+      xhr.timeout = 50000;
+      xhr.onreadystatechange = function () {
+        if ((this.readyState == 3 || this.readyState == 4) && this.status == 200) {
+          // on success
+          if (eventsource.readyState == eventsource.CONNECTING) {
+            eventsource.readyState = eventsource.OPEN;
+            eventsource.dispatchEvent('open', { type: 'open' });
+          }
+
+          var responseText = '';
+          try {
+            responseText = this.responseText || '';
+          } catch (e) {}
         
-        init();
-    };
+          // process this.responseText
+          var parts = responseText.substr(cache.length).split("\n"),
+              eventType = 'message',
+              data = [],
+              i = 0,
+              line = '';
+            
+          cache = responseText;
+        
+          // TODO handle 'event' (for buffer name), retry
+          for (; i < parts.length; i++) {
+            line = parts[i].replace(reTrim, '');
+            if (line.indexOf('event') == 0) {
+              eventType = line.replace(/event:?\s*/, '');
+            } else if (line.indexOf('data') == 0) {
+              data.push(line.replace(/data:?\s*/, ''));
+            } else if (line.indexOf('id:') == 0) {
+              lastEventId = line.replace(/id:?\s*/, '');
+            } else if (line.indexOf('id') == 0) { // this resets the id
+              lastEventId = null;
+            } else if (line == '') {
+              if (data.length) {
+                var event = new MessageEvent(data.join('\n'), eventsource.url, lastEventId);
+                eventsource.dispatchEvent(eventType, event);
+                data = [];
+                eventType = 'message';
+              }
+            }
+          }
+
+          if (this.readyState == 4) pollAgain();
+          // don't need to poll again, because we're long-loading
+        } else if (eventsource.readyState !== eventsource.CLOSED) {
+          if (this.readyState == 4) { // and some other status
+            // dispatch error
+            eventsource.readyState = eventsource.CONNECTING;
+            eventsource.dispatchEvent('error', { type: 'error' });
+            pollAgain();
+          } else if (this.readyState == 0) { // likely aborted
+            pollAgain();
+          } else {
+          }
+        }
+      };
     
-    window.EventSource = EventSource;
+      xhr.send();
     
-})(window);
+      setTimeout(function () {
+        if (true || xhr.readyState == 3) xhr.abort();
+      }, xhr.timeout);
+      
+      eventsource._xhr = xhr;
+    
+    } catch (e) { // in an attempt to silence the errors
+      eventsource.dispatchEvent('error', { type: 'error', data: e.message }); // ???
+    } 
+  };
+  
+  poll(); // init now
 };
+
+EventSource.prototype = {
+  close: function () {
+    // closes the connection - disabling the polling
+    this.readyState = this.CLOSED;
+    clearInterval(this._pollTimer);
+    this._xhr.abort();
+  },
+  CONNECTING: 0,
+  OPEN: 1,
+  CLOSED: 2,
+  dispatchEvent: function (type, event) {
+    var handlers = this['_' + type + 'Handlers'];
+    if (handlers) {
+      for (var i = 0; i < handlers.length; i++) {
+        handlers[i].call(this, event);
+      }
+    }
+
+    if (this['on' + type]) {
+      this['on' + type].call(this, event);
+    }
+  },
+  addEventListener: function (type, handler) {
+    if (!this['_' + type + 'Handlers']) {
+      this['_' + type + 'Handlers'] = [];
+    }
+    
+    this['_' + type + 'Handlers'].push(handler);
+  },
+  removeEventListener: function () {
+    // TODO
+  },
+  onerror: null,
+  onmessage: null,
+  onopen: null,
+  readyState: 0,
+  URL: ''
+};
+
+var MessageEvent = function (data, origin, lastEventId) {
+  this.data = data;
+  this.origin = origin;
+  this.lastEventId = lastEventId || '';
+};
+
+MessageEvent.prototype = {
+  data: null,
+  type: 'message',
+  lastEventId: '',
+  origin: ''
+};
+
+if ('module' in global) module.exports = EventSource;
+global.EventSource = EventSource;
+ 
+})(this);
